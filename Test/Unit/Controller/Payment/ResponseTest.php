@@ -12,6 +12,8 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Controller\Payment;
 
+use Magento\Framework\Exception\LocalizedException;
+use PHPUnit\Framework\MockObject\MockObject;
 use BigFish\PaymentGateway;
 use BigFish\PaymentGateway\Config;
 use BigFish\PaymentGateway\Transport\Response\Response as PaymentGatewayResponse;
@@ -22,34 +24,34 @@ use Bigfishpaymentgateway\Pmgw\Model\Response\ResultInterface;
 use Magento\Payment\Gateway\ConfigInterface;
 use Magento\Framework\App\Response\RedirectInterface;
 
-class ResponseTest extends AbstractTest
+class ResponseTest extends PaymentTestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ResponseProcessor&MockObject
      */
     private $responseProcessorMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigInterface&MockObject
      */
     private $configMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Helper&MockObject
      */
     private $helperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ResultInterface&MockObject
      */
     private $resultMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var RedirectInterface&MockObject
      */
     private $redirectMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -70,21 +72,18 @@ class ResponseTest extends AbstractTest
         $this->redirectMock = $this->getMockBuilder(RedirectInterface::class)
             ->getMock();
 
-        $this->contextMock->expects(static::any())
-            ->method('getRedirect')
-            ->will($this->returnValue($this->redirectMock));
+        $this->contextMock->method('getRedirect')
+            ->willReturn($this->redirectMock);
     }
 
-    /**
-     * @test
-     * @expectedException \Magento\Framework\Exception\LocalizedException
-     * @expectedExceptionMessage Missing or invalid transaction id.
-     */
-    public function missingTransactionIdTest()
+    public function testMissingTransactionId()
     {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Missing or invalid transaction id.');
+
         $this->requestMock->expects(static::once())
             ->method('getParams')
-            ->will($this->returnValue([]));
+            ->willReturn([]);
 
         $controller = new ResponseController(
             $this->contextMock,
@@ -96,10 +95,7 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     */
-    public function pendingTransactionTest()
+    public function testPendingTransaction()
     {
         $response = $this->createPaymentGatewayResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
@@ -121,10 +117,7 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     */
-    public function successfulTransactionTest()
+    public function testSuccessfulTransaction()
     {
         $response = $this->createPaymentGatewayResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -146,10 +139,7 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     */
-    public function timeoutTransactionTest()
+    public function testTimeoutTransaction()
     {
         $response = $this->createPaymentGatewayResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_TIMEOUT,
@@ -171,10 +161,7 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     */
-    public function errorTransactionTest()
+    public function testErrorTransaction()
     {
         $response = $this->createPaymentGatewayResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_ERROR,
@@ -196,10 +183,7 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     */
-    public function userCancelTransactionTest()
+    public function testUserCancelTransaction()
     {
         $response = $this->createPaymentGatewayResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_USER_CANCEL,
@@ -221,18 +205,16 @@ class ResponseTest extends AbstractTest
         $controller->execute();
     }
 
-    /**
-     * @test
-     * @expectedException \Magento\Framework\Exception\LocalizedException
-     * @expectedExceptionMessage Missing or invalid result code.
-     */
-    public function invalidResultCodeTest()
+    public function testInvalidResultCode()
     {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Missing or invalid result code.');
+
         $response = $this->createPaymentGatewayResponse([
-            'ResultCode' => PaymentGateway::RESULT_CODE_OPEN,
+            'ResultCode' => 'INVALID',
         ]);
 
-        $resultCode = 'OPEN';
+        $resultCode = 'INVALID';
 
         $this->setRequestMockGetParams();
 
@@ -264,7 +246,11 @@ class ResponseTest extends AbstractTest
      */
     private function createPaymentGatewayConfig(array $data)
     {
-        return new Config($data);
+        $config = new Config();
+        foreach ($data as $name => $value) {
+            $config->$name = $value;
+        }
+        return $config;
     }
 
     /**
@@ -273,34 +259,27 @@ class ResponseTest extends AbstractTest
      */
     private function createPaymentGatewayResponse(array $data)
     {
-        return new PaymentGatewayResponse(json_encode($data));
+        return PaymentGatewayResponse::createFromJson(json_encode($data));
     }
 
     private function setRequestMockGetParams()
     {
         $this->requestMock->expects(static::once())
             ->method('getParams')
-            ->will($this->returnValue([
+            ->willReturn([
                 'TransactionId' => 'test_transaction_id',
-            ]));
+            ]);
     }
 
     private function setConfigMockGetValue()
     {
-        $this->configMock->expects(static::at(0))
+        $this->configMock->expects(static::exactly(3))
             ->method('getValue')
-            ->with('storename')
-            ->will($this->returnValue('test_storename'));
-
-        $this->configMock->expects(static::at(1))
-            ->method('getValue')
-            ->with('apikey')
-            ->will($this->returnValue('test_apikey'));
-
-        $this->configMock->expects(static::at(2))
-            ->method('getValue')
-            ->with('testmode')
-            ->will($this->returnValue(1));
+            ->willReturnMap([
+                ['storename', null, 'test_storename'],
+                ['apikey', null, 'test_apikey'],
+                ['testmode', null, 1],
+            ]);
     }
 
     private function setHelperMockSetPaymentGatewayConfig()
@@ -321,7 +300,7 @@ class ResponseTest extends AbstractTest
         $this->helperMock->expects(static::once())
             ->method('getPaymentGatewayResult')
             ->with('test_transaction_id')
-            ->will($this->returnValue($response));
+            ->willReturn($response);
     }
 
     /**
@@ -338,7 +317,7 @@ class ResponseTest extends AbstractTest
     {
         $this->responseProcessorMock->expects(static::once())
             ->method('processResponse')
-            ->will($this->returnValue($this->resultMock));
+            ->willReturn($this->resultMock);
     }
 
     /**
@@ -348,7 +327,7 @@ class ResponseTest extends AbstractTest
     {
         $this->resultMock->expects(static::once())
             ->method('getCode')
-            ->will($this->returnValue($resultCode));
+            ->willReturn($resultCode);
     }
 
     /**
@@ -390,5 +369,4 @@ class ResponseTest extends AbstractTest
 
         $this->setRedirectMockRedirect($expectedRedirectUrl, $expectedRedirectParams);
     }
-
 }

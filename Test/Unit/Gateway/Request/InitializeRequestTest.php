@@ -12,6 +12,15 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Request;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use Magento\Customer\Api\CustomerRepositoryInterface;
+use Magento\Framework\Exception\LocalizedException;
+use PHPUnit\Framework\TestCase;
+use BigFish\PaymentGateway\Data\Info;
+use BigFish\PaymentGateway\Data\Info\Customer\InfoCustomerGeneral;
+use BigFish\PaymentGateway\Data\Info\Customer\InfoCustomerStoreSpecific;
+use Magento\Customer\Api\Data\CustomerInterface;
+use Bigfishpaymentgateway\Pmgw\Model\Source\Transaction as TransactionResource;
 use BigFish\PaymentGateway;
 use BigFish\PaymentGateway\Request\Init as InitRequest;
 use BigFish\PaymentGateway\Transport\Response\Response;
@@ -33,85 +42,85 @@ use \Magento\Framework\App\Config\ScopeConfigInterface;
 use \Magento\Quote\Api\Data\PaymentInterface;
 use \Magento\Webapi\Controller\Rest\InputParamsResolver;
 
-class InitializeRequestTest extends \PHPUnit_Framework_TestCase
+class InitializeRequestTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigProvider&MockObject
      */
     private $configProviderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var StoreManagerInterface&MockObject
      */
     private $storeManagerMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ProductMetadataInterface&MockObject
      */
     private $productMetaDataMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ModuleListInterface&MockObject
      */
     private $moduleListMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Helper&MockObject
      */
     private $helperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var LoggerInterface&MockObject
      */
     private $loggerMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var DateTime&MockObject
      */
     private $dateTimeMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var PaymentDataObjectInterface&MockObject
      */
     private $paymentDataObjectMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var InfoInterface&MockObject
      */
     private $paymentMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var MethodInterface&MockObject
      */
     private $paymentMethodMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var StoreInterface&MockObject
      */
     private $storeMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var OrderAdapterInterface&MockObject
      */
     private $orderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Transaction&MockObject
      */
     private $transactionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ScopeConfigInterface&MockObject
      */
     private $scopeConfigMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var PaymentInterface&MockObject
      */
     private $paymentInterfacedMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var InputParamsResolver&MockObject
      */
     private $inputParamsResolverMock;
 
@@ -140,7 +149,17 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
      */
     private $date;
 
-    public function setUp()
+    /**
+     * @var CustomerRepositoryInterface
+     */
+    private $customerRepository;
+
+    /**
+     * @var TransactionResource&MockObject
+     */
+    private $transactionResource;
+
+    protected function setUp(): void
     {
         $this->configProviderMock = $this->getMockBuilder(ConfigProvider::class)
             ->disableOriginalConstructor()
@@ -197,20 +216,32 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->transactionId = md5(rand(1, 100));
+        $customer = $this->createStub(CustomerInterface::class);
+        $customer->method('getFirstname')->willReturn('Test');
+        $customer->method('getLastname')->willReturn('Customer');
+        $customer->method('getEmail')->willReturn('customer@example.com');
+        $customer->method('getCreatedAt')->willReturn('2024-01-01 00:00:00');
+        $customer->method('getUpdatedAt')->willReturn('2024-01-02 00:00:00');
+        $this->customerRepository = $this->createStub(CustomerRepositoryInterface::class);
+        $this->customerRepository->method('getById')->willReturn($customer);
+        $this->transactionResource = $this->createMock(TransactionResource::class);
+        $this->orderMock->method('getRemoteIp')->willReturn('127.0.0.1');
+        $this->orderMock->method('getShippingAddress')->willReturn(null);
+        $this->orderMock->method('getBillingAddress')->willReturn(null);
+        $this->scopeConfigMock->method('getValue')->willReturn('ts_TS');
+
+        $this->transactionId = hash('sha256', (string)rand(1, 100));
         $this->amount = rand(2000, 4000);
         $this->orderId = rand(1, 1000);
         $this->userId = rand(1, 1000);
         $this->date = date('Y-m-d H:i:s');
     }
 
-    /**
-     * @test
-     * @expectedException \InvalidArgumentException
-     * @expectedExceptionMessage Payment data object should be provided
-     */
-    public function invalidPaymentDataObjectTest()
+    public function testInvalidPaymentDataObject()
     {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Payment data object should be provided');
+
         $initializeRequest = new InitializeRequest(
             $this->configProviderMock,
             $this->storeManagerMock,
@@ -221,19 +252,19 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $initializeRequest->build([]);
     }
 
-    /**
-     * @test
-     * @expectedException \UnexpectedValueException
-     * @expectedExceptionMessage Payment parameter array should be provided
-     */
-    public function emptyProviderConfigTest()
+    public function testEmptyProviderConfig()
     {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('Payment parameter array should be provided');
+
         $this->setPaymentDataObjectMockGetPayment();
         $this->setPaymentMockGetMethodInstance();
 
@@ -253,7 +284,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $initializeRequest->build([
@@ -261,16 +294,14 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         ]);
     }
 
-    /**
-     * @test
-     * @expectedException \UnexpectedValueException
-     * @expectedExceptionMessage ERROR: Error message
-     */
-    public function failedBuildRequestTest()
+    public function testFailedBuildRequest()
     {
+        $this->expectException(LocalizedException::class);
+        $this->expectExceptionMessage('ERROR: Error message');
+
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'test_provider_code';
+        $expectedInitRequest->setProviderName('test_provider_code');
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_ERROR,
@@ -284,7 +315,6 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->setPaymentMockGetMethodInstance();
         $this->setStoreManagerMockGetStore();
         $this->setStoreMockGetBaseUrl();
-        $this->setStoreMockGetLocaleCode();
         $this->setOrderMockGetOrderIncrementId();
         $this->setOrderMockGetGrandTotalAmount();
         $this->setOrderMockGetCurrencyCode();
@@ -317,7 +347,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $initializeRequest->build([
@@ -326,14 +358,11 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestTest()
+    public function testSuccessfulBuildRequest()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'test_provider_code';
+        $expectedInitRequest->setProviderName('test_provider_code');
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -367,7 +396,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -379,26 +410,14 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestWithKhbSzepProviderTest()
+    public function testSuccessfulBuildRequestWithKhbSzepProvider()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'KHBSZEP';
-        $expectedInitRequest->responseUrl = 'http://example.com/test_response_url';
-        $expectedInitRequest->extra = $this->urlSafeEncode(json_encode(['KhbCardPocketId' => 'test_card_pocket_id']));
+        $expectedInitRequest->setProviderName('KHBSZEP');
+        $expectedInitRequest->setResponseUrl('http://example.com/test_response_url');
+        $expectedInitRequest->setExtra(['KhbCardPocketId' => 'test_card_pocket_id']);
 
-        unset($expectedInitRequest->otpCardPocketId);
-        unset($expectedInitRequest->oneClickPayment);
-        unset($expectedInitRequest->oneClickReferenceId);
-        unset($expectedInitRequest->otpCardNumber);
-        unset($expectedInitRequest->otpExpiration);
-        unset($expectedInitRequest->otpCvc);
-        unset($expectedInitRequest->otpConsumerRegistrationId);
-        unset($expectedInitRequest->mkbSzepCardNumber);
-        unset($expectedInitRequest->mkbSzepCvv);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -433,7 +452,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -445,16 +466,13 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestWithMkbSzepProviderTest()
+    public function testSuccessfulBuildRequestWithMkbSzepProvider()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'MKBSZEP';
-        $expectedInitRequest->mkbSzepCafeteriaId = '1111';
-        $expectedInitRequest->gatewayPaymentPage = true;
+        $expectedInitRequest->setProviderName('MKBSZEP');
+        $expectedInitRequest->setMkbSzepCafeteriaId('1111');
+        $expectedInitRequest->setGatewayPaymentPage(true);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -489,7 +507,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -501,17 +521,14 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function mkbSzepDeprecatedPocketFallsBackToMainAccountTest()
+    public function testMkbSzepDeprecatedPocketFallsBackToMainAccount()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'MKBSZEP';
+        $expectedInitRequest->setProviderName('MKBSZEP');
         // The deprecated Home renovation pocket ('4444') must be redirected to Main account ('1111').
-        $expectedInitRequest->mkbSzepCafeteriaId = '1111';
-        $expectedInitRequest->gatewayPaymentPage = true;
+        $expectedInitRequest->setMkbSzepCafeteriaId('1111');
+        $expectedInitRequest->setGatewayPaymentPage(true);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -546,7 +563,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -557,16 +576,13 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         ]));
     }
 
-    /**
-     * @test
-     */
-    public function mkbSzepUnknownPocketIsNotSilentlyRemappedTest()
+    public function testMkbSzepUnknownPocketIsNotSilentlyRemapped()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'MKBSZEP';
-        $expectedInitRequest->mkbSzepCafeteriaId = '9999';
-        $expectedInitRequest->gatewayPaymentPage = true;
+        $expectedInitRequest->setProviderName('MKBSZEP');
+        $expectedInitRequest->setMkbSzepCafeteriaId('9999');
+        $expectedInitRequest->setGatewayPaymentPage(true);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -601,7 +617,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -612,15 +630,12 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         ]));
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestWithOtpSzepProviderTest()
+    public function testSuccessfulBuildRequestWithOtpSzepProvider()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'OTP';
-        $expectedInitRequest->otpCardPocketId = 10;
+        $expectedInitRequest->setProviderName('OTP');
+        $expectedInitRequest->setOtpCardPocketId(10);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -655,7 +670,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -667,28 +684,16 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestWithSaferpayProviderTest()
+    public function testSuccessfulBuildRequestWithSaferpayProvider()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'Saferpay';
-        $expectedInitRequest->extra = $this->urlSafeEncode(json_encode([
+        $expectedInitRequest->setProviderName('Saferpay');
+        $expectedInitRequest->setExtra([
             'SaferpayPaymentMethods' => ['foo', 'bar'],
             'SaferpayWallets' => ['bar', 'foo'],
-        ]));
+        ]);
 
-        unset($expectedInitRequest->otpCardPocketId);
-        unset($expectedInitRequest->oneClickPayment);
-        unset($expectedInitRequest->oneClickReferenceId);
-        unset($expectedInitRequest->otpCardNumber);
-        unset($expectedInitRequest->otpExpiration);
-        unset($expectedInitRequest->otpCvc);
-        unset($expectedInitRequest->otpConsumerRegistrationId);
-        unset($expectedInitRequest->mkbSzepCardNumber);
-        unset($expectedInitRequest->mkbSzepCvv);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -724,7 +729,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -736,27 +743,15 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    /**
-     * @test
-     */
-    public function successfulBuildRequestWithWirecardProviderTest()
+    public function testSuccessfulBuildRequestWithWirecardProvider()
     {
         $expectedInitRequest = $this->getExpectedInitRequest();
 
-        $expectedInitRequest->providerName = 'QPAY';
-        $expectedInitRequest->extra = $this->urlSafeEncode(json_encode([
+        $expectedInitRequest->setProviderName('QPAY');
+        $expectedInitRequest->setExtra([
             'QpayPaymentType' => 'foo',
-        ]));
+        ]);
 
-        unset($expectedInitRequest->otpCardPocketId);
-        unset($expectedInitRequest->oneClickPayment);
-        unset($expectedInitRequest->oneClickReferenceId);
-        unset($expectedInitRequest->otpCardNumber);
-        unset($expectedInitRequest->otpExpiration);
-        unset($expectedInitRequest->otpCvc);
-        unset($expectedInitRequest->otpConsumerRegistrationId);
-        unset($expectedInitRequest->mkbSzepCardNumber);
-        unset($expectedInitRequest->mkbSzepCvv);
 
         $response = $this->createResponse([
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
@@ -791,7 +786,9 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             $this->dateTimeMock,
             $this->scopeConfigMock,
             $this->paymentInterfacedMock,
-            $this->inputParamsResolverMock
+            $this->customerRepository,
+            $this->inputParamsResolverMock,
+            $this->transactionResource
         );
 
         $this->assertEquals([
@@ -825,7 +822,6 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
 
         $this->setStoreMockGetBaseUrl();
 
-        $this->setStoreMockGetLocaleCode();
 
         $this->setOrderMockGetOrderIncrementId();
 
@@ -859,16 +855,26 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
     private function getExpectedInitRequest()
     {
         $expectedRequest = new InitRequest();
-        $expectedRequest->responseUrl = 'http://example.com/test_response_url';
-        $expectedRequest->language = 'TS';
-        $expectedRequest->amount = $this->amount;
-        $expectedRequest->currency = 'TES';
-        $expectedRequest->orderId = $this->orderId;
-        $expectedRequest->userId = $this->userId;
-        $expectedRequest->oneClickPayment = false;
-        $expectedRequest->moduleName = 'Magento (test_magento_version)';
-        $expectedRequest->moduleVersion = 'test_setup_version';
-        $expectedRequest->autoCommit = 'true';
+        $expectedRequest->setResponseUrl('http://example.com/test_response_url');
+        $expectedRequest->setLanguage('TS');
+        $expectedRequest->setAmount($this->amount);
+        $expectedRequest->setCurrency('TES');
+        $expectedRequest->setOrderId($this->orderId);
+        $expectedRequest->setUserId($this->userId);
+        $expectedRequest->setModuleName('Magento (test_magento_version)');
+        $expectedRequest->setModuleVersion('test_setup_version');
+        $expectedRequest->setAutoCommit(true);
+
+        $info = new Info();
+        $info->setObject((new InfoCustomerGeneral())
+            ->setLastName('Customer')
+            ->setFirstName('Test')
+            ->setEmail('customer@example.com')
+            ->setIp('127.0.0.1'));
+        $info->setObject((new InfoCustomerStoreSpecific())
+            ->setUpdateDate('2024-01-02')
+            ->setCreationDate('2024-01-01'));
+        $expectedRequest->setInfo($info);
 
         return $expectedRequest;
     }
@@ -887,7 +893,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
     {
         $this->productMetaDataMock->expects(static::once())
             ->method('getVersion')
-            ->will($this->returnValue('test_magento_version'));
+            ->willReturn('test_magento_version');
     }
 
     private function setModuleListMockGetOne()
@@ -895,87 +901,76 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->moduleListMock->expects(static::once())
             ->method('getOne')
             ->with('Bigfishpaymentgateway_Pmgw')
-            ->will($this->returnValue([
+            ->willReturn([
                 'setup_version' => 'test_setup_version',
-            ]));
+            ]);
     }
 
     private function setDateTimeMockDate()
     {
         $this->dateTimeMock->expects(static::once())
             ->method('date')
-            ->will($this->returnValue($this->date));
+            ->willReturn($this->date);
     }
 
     private function setPaymentDataObjectMockGetPayment()
     {
         $this->paymentDataObjectMock->expects(static::once())
             ->method('getPayment')
-            ->will($this->returnValue($this->paymentMock));
+            ->willReturn($this->paymentMock);
     }
 
     private function setPaymentDataObjectMockGetOrder()
     {
         $this->paymentDataObjectMock->expects(static::once())
             ->method('getOrder')
-            ->will($this->returnValue($this->orderMock));
+            ->willReturn($this->orderMock);
     }
 
     private function setPaymentMockGetMethodInstance()
     {
         $this->paymentMock->expects(static::once())
             ->method('getMethodInstance')
-            ->will($this->returnValue($this->paymentMethodMock));
+            ->willReturn($this->paymentMethodMock);
     }
 
     private function setStoreManagerMockGetStore()
     {
-        $this->storeManagerMock->expects(static::any())
-            ->method('getStore')
-            ->will($this->returnValue($this->storeMock));
+        $this->storeManagerMock->method('getStore')
+            ->willReturn($this->storeMock);
     }
 
     private function setStoreMockGetBaseUrl()
     {
         $this->storeMock->expects(static::once())
             ->method('getBaseUrl')
-            ->with('web')
-            ->will($this->returnValue('http://example.com'));
-    }
-
-    private function setStoreMockGetLocaleCode()
-    {
-        $this->storeMock->expects(static::once())
-            ->method('getLocaleCode')
-            ->will($this->returnValue('ts_TS'));
+            ->willReturn('http://example.com');
     }
 
     private function setOrderMockGetOrderIncrementId()
     {
-        $this->orderMock->expects(static::any())
-            ->method('getOrderIncrementId')
-            ->will($this->returnValue($this->orderId));
+        $this->orderMock->method('getOrderIncrementId')
+            ->willReturn($this->orderId);
     }
 
     private function setOrderMockGetGrandTotalAmount()
     {
         $this->orderMock->expects(static::once())
             ->method('getGrandTotalAmount')
-            ->will($this->returnValue($this->amount));
+            ->willReturn($this->amount);
     }
 
     private function setOrderMockGetCurrencyCode()
     {
         $this->orderMock->expects(static::once())
             ->method('getCurrencyCode')
-            ->will($this->returnValue('TES'));
+            ->willReturn('TES');
     }
 
     private function setOrderMockGetCustomerId()
     {
-        $this->orderMock->expects(static::once())
-            ->method('getCustomerId')
-            ->will($this->returnValue($this->userId));
+        $this->orderMock->method('getCustomerId')
+            ->willReturn($this->userId);
     }
 
     private function setTransactionMockSetOrderId()
@@ -983,7 +978,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->transactionMock->expects(static::once())
             ->method('setOrderId')
             ->with($this->orderId)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
     }
 
     private function setTransactionMockSetTransactionId()
@@ -991,7 +986,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->transactionMock->expects(static::once())
             ->method('setTransactionId')
             ->with($this->transactionId)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
     }
 
     private function setTransactionMockSetCreatedTime()
@@ -999,7 +994,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->transactionMock->expects(static::once())
             ->method('setCreatedTime')
             ->with($this->date)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
     }
 
     private function setTransactionMockSetStatus()
@@ -1007,20 +1002,21 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->transactionMock->expects(static::once())
             ->method('setStatus')
             ->with(100)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
     }
 
     private function setTransactionMockSave()
     {
-        $this->transactionMock->expects(static::once())
-            ->method('save');
+        $this->transactionResource->expects(static::once())
+            ->method('save')
+            ->with($this->transactionMock);
     }
 
     private function setHelperMockCreateTransaction()
     {
         $this->helperMock->expects(static::once())
             ->method('createTransaction')
-            ->will($this->returnValue($this->transactionMock));
+            ->willReturn($this->transactionMock);
     }
 
     /**
@@ -1032,7 +1028,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->helperMock->expects(static::once())
             ->method('initializePaymentGatewayTransaction')
             ->with($expectedInitRequest)
-            ->will($this->returnValue($response));
+            ->willReturn($response);
     }
 
     /**
@@ -1042,7 +1038,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
     {
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
     }
 
     /**
@@ -1052,7 +1048,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
     {
         $this->paymentMethodMock->expects(static::once())
             ->method('getCode')
-            ->will($this->returnValue($code));
+            ->willReturn($code);
     }
 
     /**
@@ -1064,7 +1060,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
         $this->configProviderMock->expects(static::once())
             ->method('getProviderConfig')
             ->with($code)
-            ->will($this->returnValue($config));
+            ->willReturn($config);
     }
 
     /**
@@ -1073,7 +1069,7 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
      */
     private function createResponse(array $data)
     {
-        $response = new Response(json_encode($data));
+        $response = Response::createFromJson(json_encode($data));
         return $response;
     }
 
@@ -1086,5 +1082,4 @@ class InitializeRequestTest extends \PHPUnit_Framework_TestCase
             ->method('critical')
             ->with($errorMessage);
     }
-
 }

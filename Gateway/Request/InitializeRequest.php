@@ -37,6 +37,8 @@ use Magento\Webapi\Controller\Rest\InputParamsResolver;
 use Psr\Log\LoggerInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 
+use Bigfishpaymentgateway\Pmgw\Model\Source\Transaction as TransactionResource;
+
 class InitializeRequest implements BuilderInterface
 {
     const MAX_NAME_LENGTH = 45;
@@ -105,6 +107,11 @@ class InitializeRequest implements BuilderInterface
     private $customerRepository;
 
     /**
+     * @var TransactionResource
+     */
+    private $transactionResource;
+
+    /**
      * @param ConfigProvider $providerConfig
      * @param StoreManagerInterface $storeManager
      * @param ProductMetadataInterface $productMetadata
@@ -116,6 +123,7 @@ class InitializeRequest implements BuilderInterface
      * @param PaymentInterface $paymentMethod
      * @param CustomerRepositoryInterface $customerRepository
      * @param InputParamsResolver $inputParamsResolver
+     * @param TransactionResource $transactionResource
      */
     public function __construct(
         ConfigProvider $providerConfig,
@@ -128,8 +136,10 @@ class InitializeRequest implements BuilderInterface
         ScopeConfigInterface $scopeConfig,
         PaymentInterface $paymentMethod,
         CustomerRepositoryInterface $customerRepository,
-        InputParamsResolver $inputParamsResolver
+        InputParamsResolver $inputParamsResolver,
+        TransactionResource $transactionResource
     ) {
+        $this->transactionResource = $transactionResource;
         $this->providerConfig = $providerConfig;
         $this->storeManager = $storeManager;
         $this->productMetaData = $productMetadata;
@@ -185,8 +195,8 @@ class InitializeRequest implements BuilderInterface
                     ->setOrderId($order->getOrderIncrementId())
                     ->setTransactionId($response->TransactionId)
                     ->setCreatedTime($this->dateTime->date())
-                    ->setStatus(Helper::TRANSACTION_STATUS_INITIALIZED)
-                    ->save();
+                    ->setStatus(Helper::TRANSACTION_STATUS_INITIALIZED);
+                $this->transactionResource->save($transaction);
 
                 $this->helper->addTransactionLog($transaction, $response->getData());
             } else {

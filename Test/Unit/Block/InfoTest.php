@@ -12,24 +12,26 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Block;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use Bigfishpaymentgateway\Pmgw\Test\Unit\Fixtures\Block\Info;
 use Magento\Framework\View\Element\Template\Context;
 use Magento\Payment\Gateway\ConfigInterface;
 use Magento\Framework\Phrase;
 
-class InfoTest extends \PHPUnit_Framework_TestCase
+class InfoTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Context&MockObject
      */
     private $contextMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigInterface&MockObject
      */
     private $configMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -41,10 +43,7 @@ class InfoTest extends \PHPUnit_Framework_TestCase
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function getLabelTest()
+    public function testGetLabel()
     {
         $block = new Info(
             $this->contextMock,
@@ -55,5 +54,4 @@ class InfoTest extends \PHPUnit_Framework_TestCase
         $this->assertInstanceOf(Phrase::class, $block->getLabel('foo'));
         $this->assertEquals('foo', $block->getLabel('foo')->getText());
     }
-
 }

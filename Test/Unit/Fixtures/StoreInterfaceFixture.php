@@ -13,14 +13,16 @@
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Fixtures;
 
 use Magento\Store\Api\Data\StoreInterface;
+use Magento\Framework\UrlInterface;
 
 interface StoreInterfaceFixture extends StoreInterface
 {
     /**
      * @param string $type
+     * @param bool|null $secure
      * @return string
      */
-    public function getBaseUrl($type);
+    public function getBaseUrl($type = UrlInterface::URL_TYPE_LINK, $secure = null);
 
     /**
      * @return string

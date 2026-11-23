@@ -12,37 +12,44 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Model;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Store\Model\StoreManagerInterface;
+use Magento\Store\Api\Data\StoreInterface;
 use Bigfishpaymentgateway\Pmgw\Model\ConfigProvider;
 
-class ConfigProviderTest extends \PHPUnit_Framework_TestCase
+class ConfigProviderTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ScopeConfigInterface&MockObject
      */
     private $scopeConfigMock;
 
-    public function setUp()
+    /**
+     * @var StoreManagerInterface|MockObject
+     */
+    private $storeManagerMock;
+
+    protected function setUp(): void
     {
         parent::setUp();
+
+        $store = $this->createStub(StoreInterface::class);
+        $this->storeManagerMock = $this->createStub(StoreManagerInterface::class);
+        $this->storeManagerMock->method('getStore')->willReturn($store);
 
         $this->scopeConfigMock = $this->getMockBuilder(ScopeConfigInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function emptyScopeConfigTest()
+    public function testEmptyScopeConfig()
     {
         $this->assertConfig([], []);
     }
 
-    /**
-     * @test
-     */
-    public function noPmgwProviderInScopeConfigTest()
+    public function testNoPmgwProviderInScopeConfig()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -54,10 +61,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], []);
     }
 
-    /**
-     * @test
-     */
-    public function noActivePmgwProviderInScopeConfigTest()
+    public function testNoActivePmgwProviderInScopeConfig()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -69,10 +73,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], []);
     }
 
-    /**
-     * @test
-     */
-    public function oneActivePmgwProviderInScopeConfigTest()
+    public function testOneActivePmgwProviderInScopeConfig()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -89,10 +90,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
-    public function multipleActivePmgwProviderInScopeConfigTest()
+    public function testMultipleActivePmgwProviderInScopeConfig()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -116,10 +114,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
-    public function multipleActiveAndInactivePmgwProviderInScopeConfigTest()
+    public function testMultipleActiveAndInactivePmgwProviderInScopeConfig()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -146,10 +141,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
-    public function unifyPmgwProviderConfigValuesTest()
+    public function testUnifyPmgwProviderConfigValues()
     {
         $this->assertConfig([
             'bigfishpaymentgateway_pmgw' => [
@@ -179,10 +171,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ]);
     }
 
-    /**
-     * @test
-     */
-    public function getProviderConfigWithInvalidCodeTest()
+    public function testGetProviderConfigWithInvalidCode()
     {
         $this->setScopeConfigMockGetValue([
             'bigfishpaymentgateway_pmgw' => [
@@ -193,15 +182,12 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
             ],
         ]);
 
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $this->assertEquals([], $configProvider->getProviderConfig('bigfishpaymentgateway_pmgw_foo'));
     }
 
-    /**
-     * @test
-     */
-    public function getProviderConfigWithValidCodeTest()
+    public function testGetProviderConfigWithValidCode()
     {
         $this->setScopeConfigMockGetValue([
             'bigfishpaymentgateway_pmgw' => [
@@ -212,7 +198,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
             ],
         ]);
 
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $this->assertEquals([
             'name' => 'bigfishpaymentgateway_pmgw_test',
@@ -221,12 +207,9 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], $configProvider->getProviderConfig('bigfishpaymentgateway_pmgw_test'));
     }
 
-    /**
-     * @test
-     */
-    public function getKhbCardPocketIdTest()
+    public function testGetKhbCardPocketId()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getKhbCardPocketId();
 
@@ -237,12 +220,9 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], array_keys($result));
     }
 
-    /**
-     * @test
-     */
-    public function getMkbCardPocketIdTest()
+    public function testGetMkbCardPocketId()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getMkbCardPocketId();
 
@@ -253,12 +233,9 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], array_keys($result));
     }
 
-    /**
-     * @test
-     */
-    public function getOtpCardPocketIdTest()
+    public function testGetOtpCardPocketId()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getOtpCardPocketId();
 
@@ -269,48 +246,36 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
         ], array_keys($result));
     }
 
-    /**
-     * @test
-     */
-    public function getSaferpayPaymentMethodsTest()
+    public function testGetSaferpayPaymentMethods()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getSaferpayPaymentMethods();
 
         $this->assertEquals(20, count($result));
     }
 
-    /**
-     * @test
-     */
-    public function getSaferpayWalletsTest()
+    public function testGetSaferpayWallets()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getSaferpayWallets();
 
         $this->assertEquals(1, count($result));
     }
 
-    /**
-     * @test
-     */
-    public function getWirecardPaymentTypesTest()
+    public function testGetWirecardPaymentTypes()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getWirecardPaymentTypes();
 
         $this->assertEquals(25, count($result));
     }
 
-    /**
-     * @test
-     */
-    public function getCardRegistrationModesTest()
+    public function testGetCardRegistrationModes()
     {
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $result = $configProvider->getCardRegistrationModes();
 
@@ -329,7 +294,7 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
     {
         $this->setScopeConfigMockGetValue($scopeConfig);
 
-        $configProvider = new ConfigProvider($this->scopeConfigMock);
+        $configProvider = new ConfigProvider($this->scopeConfigMock, $this->storeManagerMock);
 
         $this->assertEquals([
             'payment' => [
@@ -345,10 +310,8 @@ class ConfigProviderTest extends \PHPUnit_Framework_TestCase
      */
     private function setScopeConfigMockGetValue(array $scopeConfig)
     {
-        $this->scopeConfigMock->expects(static::any())
-            ->method('getValue')
+        $this->scopeConfigMock->method('getValue')
             ->with('payment')
-            ->will($this->returnValue($scopeConfig));
+            ->willReturn($scopeConfig);
     }
-
 }

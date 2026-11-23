@@ -12,6 +12,17 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Helper;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
+use BigFish\PaymentGateway;
+use BigFish\PaymentGateway\Request\Result as ResultRequest;
+use ReflectionProperty;
+use Bigfishpaymentgateway\Pmgw\Model\Source\Transaction as TransactionResource;
+use Bigfishpaymentgateway\Pmgw\Model\Source\Log as LogResource;
+use Bigfishpaymentgateway\Pmgw\Model\Source\Log\CollectionFactory as LogCollectionFactory;
+use Magento\Sales\Model\ResourceModel\Order as OrderResource;
+use Magento\Sales\Model\ResourceModel\Order\Payment as PaymentResource;
+use Magento\Sales\Model\ResourceModel\Order\Payment\Transaction as PaymentTransactionResource;
 use BigFish\PaymentGateway\Config;
 use BigFish\PaymentGateway\Request\Init as InitRequest;
 use BigFish\PaymentGateway\Transport\Response\Response;
@@ -25,52 +36,64 @@ use Magento\Framework\Json\Helper\Data as JsonHelper;
 use Magento\Framework\Stdlib\DateTime\DateTime;
 use Magento\Sales\Model\Order\Payment\Transaction\BuilderInterface as TransactionBuilderInterface;
 
-class HelperTest extends \PHPUnit_Framework_TestCase
+class HelperTest extends TestCase
 {
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransactionFactory&MockObject
      */
     private $transactionFactoryMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var LogFactory&MockObject
      */
     private $logFactoryMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Logger&MockObject
      */
     private $paymentLoggerMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var JsonHelper&MockObject
      */
     private $jsonHelperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var DateTime&MockObject
      */
     private $dateTimeMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Transaction&MockObject
      */
     private $transactionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Log&MockObject
      */
     private $logMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransactionBuilderInterface&MockObject
      */
     private $transactionBuilderInterfaceMock;
 
-    public function setUp()
+    /**
+     * @var TransactionResource&MockObject
+     */
+    private $transactionResource;
+
+    /**
+     * @var LogResource&MockObject
+     */
+    private $logResource;
+
+    protected function setUp(): void
     {
         parent::setUp();
+        $this->transactionResource = $this->createMock(TransactionResource::class);
+        $this->logResource = $this->createMock(LogResource::class);
 
         $this->transactionFactoryMock = $this->getMockBuilder(TransactionFactory::class)
             ->disableOriginalConstructor()
@@ -104,14 +127,11 @@ class HelperTest extends \PHPUnit_Framework_TestCase
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function createTransactionTest()
+    public function testCreateTransaction()
     {
         $this->transactionFactoryMock->expects(static::once())
             ->method('create')
-            ->will($this->returnValue($this->transactionMock));
+            ->willReturn($this->transactionMock);
 
         $this->assertEquals(
             $this->transactionMock,
@@ -119,19 +139,16 @@ class HelperTest extends \PHPUnit_Framework_TestCase
         );
     }
 
-    /**
-     * @test
-     */
-    public function getTransactionByTransactionIdTest()
+    public function testGetTransactionByTransactionId()
     {
         $this->transactionFactoryMock->expects(static::once())
             ->method('create')
-            ->will($this->returnValue($this->transactionMock));
+            ->willReturn($this->transactionMock);
 
-        $this->transactionMock->expects(static::once())
+        $this->transactionResource->expects(static::once())
             ->method('load')
-            ->with(1, 'transaction_id')
-            ->will($this->returnSelf());
+            ->with($this->transactionMock, 1, 'transaction_id')
+            ->willReturnSelf();
 
         $this->assertEquals(
             $this->transactionMock,
@@ -139,26 +156,21 @@ class HelperTest extends \PHPUnit_Framework_TestCase
         );
     }
 
-    /**
-     * @test
-     */
-    public function updateTransactionStatusTest()
+    public function testUpdateTransactionStatus()
     {
         $this->transactionMock->expects(static::once())
             ->method('setStatus')
             ->with(100)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
-        $this->transactionMock->expects(static::once())
-            ->method('save');
+        $this->transactionResource->expects(static::once())
+            ->method('save')
+            ->with($this->transactionMock);
 
         $this->createHelper()->updateTransactionStatus($this->transactionMock, 100);
     }
 
-    /**
-     * @test
-     */
-    public function addTransactionLogTest()
+    public function testAddTransactionLog()
     {
         $transactionId = 1;
         $status = 100;
@@ -167,55 +179,53 @@ class HelperTest extends \PHPUnit_Framework_TestCase
 
         $this->transactionMock->expects(static::once())
             ->method('getId')
-            ->will($this->returnValue($transactionId));
+            ->willReturn($transactionId);
 
         $this->transactionMock->expects(static::once())
             ->method('getStatus')
-            ->will($this->returnValue($status));
+            ->willReturn($status);
 
         $this->dateTimeMock->expects(static::once())
             ->method('date')
-            ->will($this->returnValue($date));
+            ->willReturn($date);
 
         $this->jsonHelperMock->expects(static::once())
             ->method('jsonEncode')
             ->with($debug)
-            ->will($this->returnValue(json_encode($debug)));
+            ->willReturn(json_encode($debug));
 
         $this->logFactoryMock->expects(static::once())
             ->method('create')
-            ->will($this->returnValue($this->logMock));
+            ->willReturn($this->logMock);
 
         $this->logMock->expects(static::once())
             ->method('setPaymentgatewayId')
             ->with($transactionId)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
         $this->logMock->expects(static::once())
             ->method('setStatus')
             ->with($status)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
         $this->logMock->expects(static::once())
             ->method('setCreatedTime')
             ->with($date)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
         $this->logMock->expects(static::once())
             ->method('setDebug')
             ->with(json_encode($debug))
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
-        $this->logMock->expects(static::once())
-            ->method('save');
+        $this->logResource->expects(static::once())
+            ->method('save')
+            ->with($this->logMock);
 
         $this->createHelper()->addTransactionLog($this->transactionMock, $debug);
     }
 
-    /**
-     * @test
-     */
-    public function setPaymentGatewayConfigTest()
+    public function testSetPaymentGatewayConfig()
     {
         $config = $this->createPaymentGatewayConfig([
             'storeName' => 'test_storename',
@@ -234,8 +244,6 @@ class HelperTest extends \PHPUnit_Framework_TestCase
                         'storeName' => 'test_storename',
                         'apiKey' => 'test_apikey',
                         'testMode' => true,
-                        'moduleName' => 'test_modulename',
-                        'moduleVersion' => 'test_moduleversion',
                     ]
                 ]
             );
@@ -243,12 +251,10 @@ class HelperTest extends \PHPUnit_Framework_TestCase
         $this->createHelper()->setPaymentGatewayConfig($config);
     }
 
-    /**
-     * @test
-     */
-    public function getPaymentGatewayStartUrlTest()
+    public function testGetPaymentGatewayStartUrl()
     {
-        $this->createHelper()->setPaymentGatewayConfig(
+        $helper = $this->createHelper();
+        $helper->setPaymentGatewayConfig(
             $this->createPaymentGatewayConfig([
                 'storeName' => 'test_storename',
                 'apiKey' => 'test_apikey',
@@ -257,15 +263,12 @@ class HelperTest extends \PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            'https://test.paymentgateway.hu/Start?TransactionId=test_transaction_id',
-            $this->createHelper()->getPaymentGatewayStartUrl('test_transaction_id')
+            'https://system-test.paymentgateway.hu/Start?TransactionId=test_transaction_id',
+            $helper->getPaymentGatewayStartUrl('test_transaction_id')
         );
     }
 
-    /**
-     * @test
-     */
-    public function initializePaymentGatewayTransactionTest()
+    public function testInitializePaymentGatewayTransaction()
     {
         $helper = $this->createHelper();
 
@@ -286,29 +289,14 @@ class HelperTest extends \PHPUnit_Framework_TestCase
             'ResultMessage' => 'Ismeretlen kereskedő (test_storename)',
         ]);
 
-        $this->paymentLoggerMock->expects(static::at(0))
+        $this->setGatewayResponse($helper, $request, $expectedResponse);
+
+        $this->paymentLoggerMock->expects(static::once())
             ->method('debug')
             ->with([
                 'action' => 'init',
-                'request' => [
-                    'StoreName' => 'test_storename',
-                    'ProviderName' => 'test_provider',
-                    'ResponseUrl' => null,
-                    'NotificationUrl' => null,
-                    'Amount' => '1',
-                    'OrderId' => null,
-                    'UserId' => null,
-                    'Currency' => null,
-                    'Language' => null,
-                    'MppPhoneNumber' => null,
-                    'MkbSzepCafeteriaId' => null,
-                    'AutoCommit' => '1',
-                    'Extra' => null,
-                    'GatewayPaymentPage' => '',
-                    'ModuleName' => 'test_modulename',
-                    'ModuleVersion' => 'test_moduleversion',
-                ],
-                'response' => (array)$expectedResponse,
+                'request' => $request->getData(),
+                'response' => $expectedResponse->getData(),
             ]);
 
         $this->assertEquals(
@@ -317,10 +305,7 @@ class HelperTest extends \PHPUnit_Framework_TestCase
         );
     }
 
-    /**
-     * @test
-     */
-    public function getPaymentGatewayResultTest()
+    public function testGetPaymentGatewayResult()
     {
         $helper = $this->createHelper();
 
@@ -337,18 +322,37 @@ class HelperTest extends \PHPUnit_Framework_TestCase
             'ResultMessage' => 'Ismeretlen tranzakció (test_transaction_id)',
         ]);
 
-        $this->paymentLoggerMock->expects(static::at(0))
+        $request = (new ResultRequest())->setTransactionId('test_transaction_id');
+        $this->setGatewayResponse($helper, $request, $expectedResponse);
+
+        $this->paymentLoggerMock->expects(static::once())
             ->method('debug')
             ->with([
                 'action' => 'result',
                 'transactionId' => 'test_transaction_id',
-                'response' => (array)$expectedResponse,
+                'response' => $expectedResponse->getData(),
             ]);
 
         $this->assertEquals(
             $expectedResponse,
             $helper->getPaymentGatewayResult('test_transaction_id')
         );
+    }
+
+    /**
+     * @param Helper $helper
+     * @param InitRequest|ResultRequest $request
+     * @param Response $response
+     */
+    private function setGatewayResponse(Helper $helper, $request, Response $response)
+    {
+        $gateway = $this->createMock(PaymentGateway::class);
+        $gateway->expects(static::once())->method('send')->with($request)->willReturn($response);
+        $property = new ReflectionProperty(Helper::class, 'paymentGateway');
+        if (PHP_VERSION_ID < 80100) {
+            $property->setAccessible(true);
+        }
+        $property->setValue($helper, $gateway);
     }
 
     /**
@@ -362,7 +366,13 @@ class HelperTest extends \PHPUnit_Framework_TestCase
             $this->logFactoryMock,
             $this->paymentLoggerMock,
             $this->jsonHelperMock,
-            $this->dateTimeMock
+            $this->dateTimeMock,
+            $this->transactionResource,
+            $this->logResource,
+            $this->createStub(LogCollectionFactory::class),
+            $this->createStub(OrderResource::class),
+            $this->createStub(PaymentResource::class),
+            $this->createStub(PaymentTransactionResource::class)
         );
         return $helper;
     }
@@ -373,7 +383,10 @@ class HelperTest extends \PHPUnit_Framework_TestCase
      */
     private function createPaymentGatewayConfig(array $data)
     {
-        $config = new Config($data);
+        $config = new Config();
+        foreach ($data as $name => $value) {
+            $config->$name = $value;
+        }
         return $config;
     }
 
@@ -391,7 +404,6 @@ class HelperTest extends \PHPUnit_Framework_TestCase
      */
     private function createPaymentGatewayResponse(array $data)
     {
-        return new Response(json_encode($data));
+        return Response::createFromJson(json_encode($data));
     }
-
 }

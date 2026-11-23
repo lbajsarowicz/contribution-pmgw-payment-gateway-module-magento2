@@ -12,40 +12,42 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Controller\Payment;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use Magento\Framework\App\Action\Context;
 use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ResponseInterface;
 use Magento\Framework\Controller\Result\RedirectFactory;
 use Magento\Framework\Controller\ResultFactory;
 
-abstract class AbstractTest extends \PHPUnit_Framework_TestCase
+abstract class PaymentTestCase extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var RequestInterface&MockObject
      */
     protected $requestMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ResponseInterface&MockObject
      */
     protected $responseMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var RedirectFactory&MockObject
      */
     protected $resultRedirectFactoryMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ResultFactory&MockObject
      */
     protected $resultFactoryMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Context&MockObject
      */
     protected $contextMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -69,19 +71,18 @@ abstract class AbstractTest extends \PHPUnit_Framework_TestCase
 
         $this->contextMock->expects(static::once())
             ->method('getRequest')
-            ->will($this->returnValue($this->requestMock));
+            ->willReturn($this->requestMock);
 
         $this->contextMock->expects(static::once())
             ->method('getResponse')
-            ->will($this->returnValue($this->responseMock));
+            ->willReturn($this->responseMock);
 
         $this->contextMock->expects(static::once())
             ->method('getResultRedirectFactory')
-            ->will($this->returnValue($this->resultRedirectFactoryMock));
+            ->willReturn($this->resultRedirectFactoryMock);
 
         $this->contextMock->expects(static::once())
             ->method('getResultFactory')
-            ->will($this->returnValue($this->resultFactoryMock));
+            ->willReturn($this->resultFactoryMock);
     }
-
 }

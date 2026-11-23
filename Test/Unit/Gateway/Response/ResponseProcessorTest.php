@@ -12,6 +12,8 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Response;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use BigFish\PaymentGateway;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Model\Order\Invoice;
@@ -25,51 +27,52 @@ use Bigfishpaymentgateway\Pmgw\Model\Transaction;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
 use Magento\Sales\Model\Order\Payment\Transaction\BuilderInterface as TransactionBuilderInterface;
 use Magento\Sales\Model\OrderFactory;
+use Magento\Sales\Model\ResourceModel\Order as OrderResource;
 
-class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
+class ResponseProcessorTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var OrderPaymentInterface&MockObject
      */
     private $paymentMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Invoice&MockObject
      */
     private $invoiceMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Order&MockObject
      */
     private $orderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var OrderSender&MockObject
      */
     private $orderSenderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var LoggerInterface&MockObject
      */
     private $loggerMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Transaction&MockObject
      */
     private $transactionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Helper&MockObject
      */
     private $helperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransactionBuilderInterface&MockObject
      */
     private $transactionBuilderInterfaceMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var OrderFactory&MockObject
      */
     private $orderFactoryMock;
 
@@ -78,7 +81,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
      */
     private $result;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -116,13 +119,13 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
+        $this->orderFactoryMock->method('create')->willReturn($this->orderMock);
+        $this->orderMock->method('loadByIncrementId')->willReturnSelf();
+
         $this->result = new Result();
     }
 
-    /**
-     * @test
-     */
-    public function missingTransactionIdFromResponseObjectTest()
+    public function testMissingTransactionIdFromResponseObject()
     {
         $responseProcessor = new ResponseProcessor(
             $this->orderMock,
@@ -131,10 +134,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
         ]));
 
@@ -146,10 +150,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('Missing or invalid transaction id.', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function missingResultCodeFromResponseObjectTest()
+    public function testMissingResultCodeFromResponseObject()
     {
         $responseProcessor = new ResponseProcessor(
             $this->orderMock,
@@ -158,10 +159,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
         ]));
 
@@ -173,10 +175,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('Missing or invalid result code.', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function transactionNotFoundTest()
+    public function testTransactionNotFound()
     {
         $responseProcessor = new ResponseProcessor(
             $this->orderMock,
@@ -185,10 +184,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
             'ResultMessage' => 'pending message',
@@ -202,10 +202,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('Transaction not found.', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function orderNotFoundTest()
+    public function testOrderNotFound()
     {
         $this->setTransactionMockGetId(1);
         $this->getHelperMockGetTransactionByTransactionId();
@@ -217,10 +214,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
             'ResultMessage' => 'pending message',
@@ -234,11 +232,9 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('Order not found.', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function invalidPaymentMethodTest()
+    public function testInvalidPaymentMethod()
     {
+        $this->setPaymentMockGetMethod('checkmo');
         $this->setOrderMockGetId(1);
         $this->setOrderMockGetPayment();
         $this->setTransactionMockGetId(1);
@@ -251,10 +247,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
             'ResultMessage' => 'pending message',
@@ -268,10 +265,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('Invalid payment method.', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processPendingResponseTest()
+    public function testProcessPendingResponse()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setOrderMockGetId(1);
@@ -286,10 +280,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_PENDING,
             'ResultMessage' => 'pending message',
@@ -317,7 +312,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -325,10 +320,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('pending message', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processSuccessResponseWithAnumTest()
+    public function testProcessSuccessResponseWithAnum()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setInvoiceMockRegister();
@@ -348,10 +340,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
             'ResultMessage' => 'success message',
@@ -385,7 +378,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -393,10 +386,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('success message', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processSuccessResponseWithoutAnumTest()
+    public function testProcessSuccessResponseWithoutAnum()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setInvoiceMockRegister();
@@ -414,10 +404,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_SUCCESS,
             'ResultMessage' => 'success message',
@@ -449,7 +440,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -457,10 +448,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('success message', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processUserCancelResponseTest()
+    public function testProcessUserCancelResponse()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setOrderMockGetId(1);
@@ -475,10 +463,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_USER_CANCEL,
             'ResultMessage' => 'user cancel message',
@@ -508,7 +497,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -516,10 +505,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('user cancel message', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processErrorResponseTest()
+    public function testProcessErrorResponse()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setOrderMockGetId(1);
@@ -534,10 +520,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_ERROR,
             'ResultMessage' => 'error message',
@@ -567,7 +554,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -575,10 +562,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('error message', $this->result->getMessage());
     }
 
-    /**
-     * @test
-     */
-    public function processTimeoutResponseTest()
+    public function testProcessTimeoutResponse()
     {
         $this->setPaymentMockGetMethod('bigfishpaymentgateway_pmgw_test');
         $this->setOrderMockGetId(1);
@@ -593,10 +577,11 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
             $this->loggerMock,
             $this->helperMock,
             $this->transactionBuilderInterfaceMock,
-            $this->orderFactoryMock
+            $this->orderFactoryMock,
+            $this->createStub(OrderResource::class)
         );
 
-        $response = new Response(json_encode([
+        $response = Response::createFromJson(json_encode([
             'TransactionId' => 'test',
             'ResultCode' => PaymentGateway::RESULT_CODE_TIMEOUT,
             'ResultMessage' => 'timeout message',
@@ -626,7 +611,7 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
 
         $this->helperMock->expects(static::once())
             ->method('addTransactionLog')
-            ->with($this->transactionMock, $response);
+            ->with($this->transactionMock, $response->getData());
 
         $responseProcessor->processResponse();
 
@@ -639,9 +624,8 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
      */
     protected function setPaymentMockGetMethod($method)
     {
-        $this->paymentMock->expects(static::any())
-            ->method('getMethod')
-            ->will($this->returnValue($method));
+        $this->paymentMock->method('getMethod')
+            ->willReturn($method);
     }
 
     /**
@@ -649,16 +633,14 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
      */
     protected function setOrderMockGetId($id)
     {
-        $this->orderMock->expects(static::any())
-            ->method('getId')
-            ->will($this->returnValue($id));
+        $this->orderMock->method('getId')
+            ->willReturn($id);
     }
 
     protected function setOrderMockGetPayment()
     {
-        $this->orderMock->expects(static::any())
-            ->method('getPayment')
-            ->will($this->returnValue($this->paymentMock));
+        $this->orderMock->method('getPayment')
+            ->willReturn($this->paymentMock);
     }
 
     /**
@@ -666,23 +648,20 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
      */
     protected function setTransactionMockGetId($id)
     {
-        $this->transactionMock->expects(static::any())
-            ->method('getId')
-            ->will($this->returnValue($id));
+        $this->transactionMock->method('getId')
+            ->willReturn($id);
     }
 
     protected function getHelperMockGetTransactionByTransactionId()
     {
-        $this->helperMock->expects(static::any())
-            ->method('getTransactionByTransactionId')
-            ->will($this->returnValue($this->transactionMock));
+        $this->helperMock->method('getTransactionByTransactionId')
+            ->willReturn($this->transactionMock);
     }
 
     protected function setInvoiceMockRegister()
     {
-        $this->invoiceMock->expects(static::any())
-            ->method('register')
-            ->will($this->returnSelf());
+        $this->invoiceMock->method('register')
+            ->willReturnSelf();
     }
 
     /**
@@ -690,16 +669,13 @@ class ResponseProcessorTest extends \PHPUnit_Framework_TestCase
      */
     protected function setOrderMockCanInvoice($canInvoice)
     {
-        $this->orderMock->expects(static::any())
-            ->method('canInvoice')
-            ->will($this->returnValue($canInvoice));
+        $this->orderMock->method('canInvoice')
+            ->willReturn($canInvoice);
     }
 
     protected function setOrderMockPrepareInvoice()
     {
-        $this->orderMock->expects(static::any())
-            ->method('prepareInvoice')
-            ->will($this->returnValue($this->invoiceMock));
+        $this->orderMock->method('prepareInvoice')
+            ->willReturn($this->invoiceMock);
     }
-
 }

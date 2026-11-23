@@ -12,6 +12,7 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Model\Order\Email\Sender;
 
+use PHPUnit\Framework\TestCase;
 use Bigfishpaymentgateway\Pmgw\Model\Order\Email\Sender\OrderSender;
 use Magento\Sales\Model\Order\Email\Container\Template;
 use Magento\Sales\Model\Order\Email\Container\OrderIdentity;
@@ -25,12 +26,9 @@ use Magento\Framework\Event\ManagerInterface;
 use Magento\Sales\Model\Order;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
 
-class OrderSenderTest extends \PHPUnit_Framework_TestCase
+class OrderSenderTest extends TestCase
 {
-    /**
-     * @test
-     */
-    public function skipSendEmailAfterPlaceOrderTest()
+    public function testSkipSendEmailAfterPlaceOrder()
     {
         $templateContainerMock = $this->getMockBuilder(Template::class)
             ->disableOriginalConstructor()
@@ -68,17 +66,15 @@ class OrderSenderTest extends \PHPUnit_Framework_TestCase
         $paymentMock = $this->getMockBuilder(OrderPaymentInterface::class)
             ->getMock();
 
-        $paymentMock->expects(static::any())
-            ->method('getMethod')
-            ->will($this->returnValue('bigfishpaymentgateway_pmgw_test'));
+        $paymentMock->method('getMethod')
+            ->willReturn('bigfishpaymentgateway_pmgw_test');
 
         $orderMock = $this->getMockBuilder(Order::class)
             ->disableOriginalConstructor()
             ->getMock();
 
-        $orderMock->expects(static::any())
-            ->method('getPayment')
-            ->will($this->returnValue($paymentMock));
+        $orderMock->method('getPayment')
+            ->willReturn($paymentMock);
 
         $orderSender = new OrderSender(
             $templateContainerMock,
@@ -94,5 +90,4 @@ class OrderSenderTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals(false, $orderSender->send($orderMock));
     }
-
 }

@@ -12,6 +12,8 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Block;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use Bigfishpaymentgateway\Pmgw\Test\Unit\Fixtures\Block\Success;
 use Bigfishpaymentgateway\Pmgw\Gateway\Helper\Helper;
 use Bigfishpaymentgateway\Pmgw\Model\Transaction;
@@ -22,61 +24,62 @@ use Magento\Sales\Model\Order\Config as OrderConfig;
 use Magento\Framework\App\Http\Context as HttpContext;
 use Magento\Framework\Json\Helper\Data as JsonHelper;
 use Magento\Sales\Model\Order;
-use Magento\Sales\Api\Data\OrderPaymentInterface;
+use Magento\Sales\Model\Order\Payment;
+use Magento\Payment\Model\MethodInterface;
 
-class SuccessTest extends \PHPUnit_Framework_TestCase
+class SuccessTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Context&MockObject
      */
     private $contextMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Session&MockObject
      */
     private $checkoutSessionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var OrderConfig&MockObject
      */
     private $orderConfigMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var HttpContext&MockObject
      */
     private $httpContextMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Helper&MockObject
      */
     private $helperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var JsonHelper&MockObject
      */
     private $jsonHelperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Order&MockObject
      */
     private $orderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Payment&MockObject
      */
     private $orderPaymentMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Transaction&MockObject
      */
     private $transactionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Log&MockObject
      */
     private $transactionLogMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         $this->contextMock = $this->getMockBuilder(Context::class)
             ->disableOriginalConstructor()
@@ -106,8 +109,16 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        $this->orderPaymentMock = $this->getMockBuilder(OrderPaymentInterface::class)
+        $this->orderPaymentMock = $this->getMockBuilder(Payment::class)
+            ->disableOriginalConstructor()
             ->getMock();
+
+        $method = $this->createStub(MethodInterface::class);
+        $method->method('getTitle')->willReturn('Test payment');
+        $this->orderPaymentMock->method('getMethodInstance')->willReturn($method);
+        $this->orderMock->method('getUpdatedAt')->willReturn('2024-01-01 00:00:00');
+        $this->orderMock->method('getBaseCurrencyCode')->willReturn('HUF');
+        $this->orderMock->method('getGrandTotal')->willReturn(100);
 
         $this->transactionMock = $this->getMockBuilder(Transaction::class)
             ->disableOriginalConstructor()
@@ -118,10 +129,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function createBlockAfterPaymentWithLoggedInUserTest()
+    public function testCreateBlockAfterPaymentWithLoggedInUser()
     {
         $block = new Success(
             $this->contextMock,
@@ -145,15 +153,16 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals([
             'order_id' => '0000001',
+            'order_updated_at' => '2024-01-01 00:00:00',
+            'order_currency_code' => 'HUF',
+            'order_total' => 100.0,
+            'method_title' => 'Test payment',
             'can_view_order' => true,
             'response' => (object)$result,
         ], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function createBlockAfterPaymentWithGuestUserTest()
+    public function testCreateBlockAfterPaymentWithGuestUser()
     {
         $block = new Success(
             $this->contextMock,
@@ -177,15 +186,16 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals([
             'order_id' => '0000001',
+            'order_updated_at' => '2024-01-01 00:00:00',
+            'order_currency_code' => 'HUF',
+            'order_total' => 100.0,
+            'method_title' => 'Test payment',
             'can_view_order' => false,
             'response' => (object)$result,
         ], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function invalidOrderTest()
+    public function testInvalidOrder()
     {
         $block = new Success(
             $this->contextMock,
@@ -204,10 +214,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals([], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function invalidOrderPaymentTest()
+    public function testInvalidOrderPayment()
     {
         $block = new Success(
             $this->contextMock,
@@ -228,10 +235,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals([], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function invalidTransactionIdTest()
+    public function testInvalidTransactionId()
     {
         $block = new Success(
             $this->contextMock,
@@ -253,10 +257,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals([], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function invalidTransactionTest()
+    public function testInvalidTransaction()
     {
         $block = new Success(
             $this->contextMock,
@@ -270,7 +271,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->setCheckoutSessionMockGetLastRealOrder($this->orderMock);
         $this->setOrderMockGetId();
-        $this->setOrderMockGetPayment($this->orderPaymentMock);
+        $this->setOrderMockGetPayment($this->orderPaymentMock, 2);
         $this->setOrderPaymentMockGetLastTransId('test_transaction_id');
         $this->setOrderMockGetIncementId();
         $this->setHttpContextMockGetValueCustomerLoggedIn(1);
@@ -282,15 +283,16 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals([
             'order_id' => '0000001',
+            'order_updated_at' => '2024-01-01 00:00:00',
+            'order_currency_code' => 'HUF',
+            'order_total' => 100.0,
+            'method_title' => 'Test payment',
             'can_view_order' => true,
             'response' => null,
         ], $block->getData());
     }
 
-    /**
-     * @test
-     */
-    public function invalidTransactionLogTest()
+    public function testInvalidTransactionLog()
     {
         $block = new Success(
             $this->contextMock,
@@ -304,7 +306,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->setCheckoutSessionMockGetLastRealOrder($this->orderMock);
         $this->setOrderMockGetId();
-        $this->setOrderMockGetPayment($this->orderPaymentMock);
+        $this->setOrderMockGetPayment($this->orderPaymentMock, 2);
         $this->setOrderPaymentMockGetLastTransId('test_transaction_id');
         $this->setOrderMockGetIncementId();
         $this->setHttpContextMockGetValueCustomerLoggedIn(1);
@@ -318,6 +320,10 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
 
         $this->assertEquals([
             'order_id' => '0000001',
+            'order_updated_at' => '2024-01-01 00:00:00',
+            'order_currency_code' => 'HUF',
+            'order_total' => 100.0,
+            'method_title' => 'Test payment',
             'can_view_order' => true,
             'response' => null,
         ], $block->getData());
@@ -331,7 +337,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
     {
         $this->setCheckoutSessionMockGetLastRealOrder($this->orderMock);
         $this->setOrderMockGetId();
-        $this->setOrderMockGetPayment($this->orderPaymentMock);
+        $this->setOrderMockGetPayment($this->orderPaymentMock, 2);
         $this->setOrderPaymentMockGetLastTransId('test_transaction_id');
         $this->setOrderMockGetIncementId();
         $this->setHttpContextMockGetValueCustomerLoggedIn($isLoggedIn);
@@ -350,32 +356,34 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
-     * @param \PHPUnit_Framework_MockObject_MockObject|null $orderMock
+     * @param MockObject|null $orderMock
      */
     private function setCheckoutSessionMockGetLastRealOrder(
-        \PHPUnit_Framework_MockObject_MockObject $orderMock = null
+        ?MockObject $orderMock = null
     ) {
         $this->checkoutSessionMock->expects(static::once())
             ->method('getLastRealOrder')
-            ->will($this->returnValue($orderMock));
+            ->willReturn($orderMock);
     }
 
     private function setOrderMockGetId()
     {
         $this->orderMock->expects(static::once())
             ->method('getId')
-            ->will($this->returnValue(1));
+            ->willReturn(1);
     }
 
     /**
-     * @param \PHPUnit_Framework_MockObject_MockObject|null $payment
+     * @param MockObject|null $payment
+     * @param int $calls
      */
     private function setOrderMockGetPayment(
-        \PHPUnit_Framework_MockObject_MockObject $payment = null
+        ?MockObject $payment = null,
+        $calls = 1
     ) {
-        $this->orderMock->expects(static::once())
+        $this->orderMock->expects(static::exactly($calls))
             ->method('getPayment')
-            ->will($this->returnValue($payment));
+            ->willReturn($payment);
     }
 
     /**
@@ -385,14 +393,14 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
     {
         $this->orderPaymentMock->expects(static::once())
             ->method('getLastTransId')
-            ->will($this->returnValue($transactionId));
+            ->willReturn($transactionId);
     }
 
     private function setOrderMockGetIncementId()
     {
         $this->orderMock->expects(static::once())
             ->method('getIncrementId')
-            ->will($this->returnValue('0000001'));
+            ->willReturn('0000001');
     }
 
     /**
@@ -403,63 +411,63 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
         $this->httpContextMock->expects(static::once())
             ->method('getValue')
             ->with('customer_logged_in')
-            ->will($this->returnValue($isLoggedIn));
+            ->willReturn($isLoggedIn);
     }
 
     private function setOrderMockGetStatus()
     {
         $this->orderMock->expects(static::once())
             ->method('getStatus')
-            ->will($this->returnValue(100));
+            ->willReturn(100);
     }
 
     private function getOrderConfigMockGetInvisibleOnFrontStatuses()
     {
         $this->orderConfigMock->expects(static::once())
             ->method('getInvisibleOnFrontStatuses')
-            ->will($this->returnValue([]));
+            ->willReturn([]);
     }
 
     /**
      * @param string|null $transactionId
-     * @param \PHPUnit_Framework_MockObject_MockObject|null $transaction
+     * @param MockObject|null $transaction
      */
     private function setHelperMockGetTransactionByTransactionId(
         $transactionId,
-        \PHPUnit_Framework_MockObject_MockObject $transaction = null
+        ?MockObject $transaction = null
     ) {
         $this->helperMock->expects(static::once())
             ->method('getTransactionByTransactionId')
             ->with($transactionId)
-            ->will($this->returnValue($transaction));
+            ->willReturn($transaction);
     }
 
     private function setTransactionMockGetId()
     {
         $this->transactionMock->expects(static::once())
             ->method('getId')
-            ->will($this->returnValue(1000));
+            ->willReturn(1000);
     }
 
     /**
-     * @param \PHPUnit_Framework_MockObject_MockObject|null $transactionMock
-     * @param \PHPUnit_Framework_MockObject_MockObject|null $transactionLogMock
+     * @param MockObject|null $transactionMock
+     * @param MockObject|null $transactionLogMock
      */
     private function setHelperMockGetTransactionLog(
-        \PHPUnit_Framework_MockObject_MockObject $transactionMock = null,
-        \PHPUnit_Framework_MockObject_MockObject $transactionLogMock = null
+        ?MockObject $transactionMock = null,
+        ?MockObject $transactionLogMock = null
     ) {
         $this->helperMock->expects(static::once())
             ->method('getTransactionLog')
             ->with($transactionMock)
-            ->will($this->returnValue($transactionLogMock));
+            ->willReturn($transactionLogMock);
     }
 
     private function setTransactionLogMockGetId()
     {
         $this->transactionLogMock->expects(static::once())
             ->method('getId')
-            ->will($this->returnValue(2000));
+            ->willReturn(2000);
     }
 
     /**
@@ -469,7 +477,7 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
     {
         $this->transactionLogMock->expects(static::once())
             ->method('getData')
-            ->will($this->returnValue(json_encode($result)));
+            ->willReturn(json_encode($result));
     }
 
     /**
@@ -480,7 +488,6 @@ class SuccessTest extends \PHPUnit_Framework_TestCase
         $this->jsonHelperMock->expects(static::once())
             ->method('jsonDecode')
             ->with(json_encode($result))
-            ->will($this->returnValue($result));
+            ->willReturn($result);
     }
-
 }

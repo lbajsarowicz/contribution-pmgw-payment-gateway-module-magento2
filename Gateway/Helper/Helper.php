@@ -34,6 +34,18 @@ use Magento\Sales\Model\Order\Payment\Transaction as PaymentTransaction;
 use Magento\Sales\Model\Order\Payment\Transaction\BuilderInterface as TransactionBuilderInterface;
 use Bigfishpaymentgateway\Pmgw\Model\ConfigProvider;
 
+use Bigfishpaymentgateway\Pmgw\Model\Source\Transaction as TransactionResource;
+
+use Bigfishpaymentgateway\Pmgw\Model\Source\Log as LogResource;
+
+use Bigfishpaymentgateway\Pmgw\Model\Source\Log\CollectionFactory as LogCollectionFactory;
+
+use Magento\Sales\Model\ResourceModel\Order as OrderResource;
+
+use Magento\Sales\Model\ResourceModel\Order\Payment as PaymentResource;
+
+use Magento\Sales\Model\ResourceModel\Order\Payment\Transaction as PaymentTransactionResource;
+
 class Helper extends AbstractHelper
 {
     const MODULE_NAME = 'Bigfishpaymentgateway_Pmgw';
@@ -84,14 +96,56 @@ class Helper extends AbstractHelper
      */
     private $paymentGateway;
 
+    /**
+     * @var TransactionResource
+     */
+    private $transactionResource;
+
+    /**
+     * @var LogResource
+     */
+    private $logResource;
+
+    /**
+     * @var LogCollectionFactory
+     */
+    private $logCollectionFactory;
+
+    /**
+     * @var OrderResource
+     */
+    private $orderResource;
+
+    /**
+     * @var PaymentResource
+     */
+    private $paymentResource;
+
+    /**
+     * @var PaymentTransactionResource
+     */
+    private $paymentTransactionResource;
+
     public function __construct(
         TransactionFactory $transactionFactory,
         TransactionBuilderInterface $transactionBuilder,
         LogFactory $logFactory,
         Logger $paymentLogger,
         JsonHelper $jsonHelper,
-        DateTime $dateTime
+        DateTime $dateTime,
+        TransactionResource $transactionResource,
+        LogResource $logResource,
+        LogCollectionFactory $logCollectionFactory,
+        OrderResource $orderResource,
+        PaymentResource $paymentResource,
+        PaymentTransactionResource $paymentTransactionResource
     ) {
+        $this->transactionResource = $transactionResource;
+        $this->logResource = $logResource;
+        $this->logCollectionFactory = $logCollectionFactory;
+        $this->orderResource = $orderResource;
+        $this->paymentResource = $paymentResource;
+        $this->paymentTransactionResource = $paymentTransactionResource;
         $this->transactionFactory = $transactionFactory;
         $this->logFactory = $logFactory;
         $this->paymentLogger = $paymentLogger;
@@ -114,7 +168,9 @@ class Helper extends AbstractHelper
      */
     public function getTransactionByTransactionId($transactionId)
     {
-        return $this->transactionFactory->create()->load($transactionId, 'transaction_id');
+        $transaction = $this->transactionFactory->create();
+        $this->transactionResource->load($transaction, $transactionId, 'transaction_id');
+        return $transaction;
     }
 
     /**
@@ -123,7 +179,8 @@ class Helper extends AbstractHelper
      */
     public function updateTransactionStatus(Transaction $transaction, $status)
     {
-        $transaction->setStatus($status)->save();
+        $transaction->setStatus($status);
+        $this->transactionResource->save($transaction);
     }
 
     /**
@@ -132,7 +189,8 @@ class Helper extends AbstractHelper
      */
     public function setCardRegistration(Transaction $transaction, $data = false)
     {
-        $transaction->setCardRegistration($data)->save();
+        $transaction->setCardRegistration($data);
+        $this->transactionResource->save($transaction);
     }
 
     /**
@@ -141,12 +199,12 @@ class Helper extends AbstractHelper
      */
     public function addTransactionLog(Transaction $transaction, $debug)
     {
-        $this->logFactory->create()
+        $log = $this->logFactory->create()
             ->setPaymentgatewayId($transaction->getId())
             ->setStatus($transaction->getStatus())
             ->setCreatedTime($this->dateTime->date())
-            ->setDebug($this->jsonHelper->jsonEncode($debug))
-            ->save();
+            ->setDebug($this->jsonHelper->jsonEncode($debug));
+        $this->logResource->save($log);
     }
 
     /**
@@ -155,7 +213,7 @@ class Helper extends AbstractHelper
      */
     public function getTransactionLog(Transaction $transaction)
     {
-        return $this->logFactory->create()->getCollection()
+        return $this->logCollectionFactory->create()
             ->addFilter('paymentgateway_id', $transaction->getId())
             ->addFilter('status', $transaction->getStatus())
             ->getFirstItem();
@@ -341,8 +399,9 @@ class Helper extends AbstractHelper
         }
 
         $payment->setParentTransactionId(null);
-        $payment->save();
-        $order->save();
-        $transaction->save()->getTransactionId();
+        $this->paymentResource->save($payment);
+        $this->orderResource->save($order);
+        $this->paymentTransactionResource->save($transaction);
+        $transaction->getTransactionId();
     }
 }
