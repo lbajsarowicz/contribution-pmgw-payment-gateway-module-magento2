@@ -28,6 +28,8 @@ use Magento\Sales\Model\Order\Email\Sender\OrderSender;
 use BigFish\PaymentGateway\Transport\Response\Response;
 use Bigfishpaymentgateway\Pmgw\Model\Response\ResultInterface;
 
+use Magento\Sales\Model\ResourceModel\Order as OrderResource;
+
 class ResponseProcessor
 {
     /**
@@ -81,6 +83,11 @@ class ResponseProcessor
     private $orderFactory;
 
     /**
+     * @var OrderResource
+     */
+    private $orderResource;
+
+    /**
      * @param Order $order
      * @param OrderSender $orderSender
      * @param ResultInterface $result
@@ -88,6 +95,7 @@ class ResponseProcessor
      * @param Helper $helper
      * @param BuilderInterface $builder
      * @param OrderFactory $orderFactory
+     * @param OrderResource $orderResource
      */
     public function __construct(
         Order $order,
@@ -96,8 +104,10 @@ class ResponseProcessor
         LoggerInterface $logger,
         Helper $helper,
         BuilderInterface $builder,
-        OrderFactory $orderFactory
+        OrderFactory $orderFactory,
+        OrderResource $orderResource
     ) {
+        $this->orderResource = $orderResource;
         $this->order = $order;
         $this->orderSender = $orderSender;
         $this->result = $result;
@@ -181,7 +191,7 @@ class ResponseProcessor
     {
         $this->order->setState(Order::STATE_PENDING_PAYMENT);
         $this->order->getPayment()->setLastTransId($this->response->TransactionId);
-        $this->order->save();
+        $this->orderResource->save($this->order);
 
         $this->helper->updateTransactionStatus($this->transaction, Helper::TRANSACTION_STATUS_PENDING);
         $this->helper->createOrderTransaction($this->order, $this->response, PaymentTransaction::TYPE_ORDER);
@@ -199,7 +209,7 @@ class ResponseProcessor
             $this->order->getPayment()->setPoNumber($this->response->Anum);
         }
         $this->orderSender->send($this->order, false);
-        $this->order->save();
+        $this->orderResource->save($this->order);
 
         if ($this->isSuccessCardRegistration($this->order)) {
             $this->helper->setCardRegistration($this->transaction, true);
@@ -212,11 +222,11 @@ class ResponseProcessor
     }
 
     /**
-     * @param Order|null $order
+     * @param Order $order
      * @return bool
      * @throws Exception
      */
-    protected function isSuccessCardRegistration(Order $order = null)
+    protected function isSuccessCardRegistration(Order $order)
     {
         $provider = $this->order->getPayment()->getMethod();
 
@@ -324,7 +334,7 @@ class ResponseProcessor
     {
         $this->order->getPayment()->setLastTransId($this->response->TransactionId);
         $this->order->cancel();
-        $this->order->save();
+        $this->orderResource->save($this->order);
 
         $this->helper->updateTransactionStatus($this->transaction, $transactionStatus);
         $this->helper->createOrderTransaction($this->order, $this->response, PaymentTransaction::TYPE_ORDER);
