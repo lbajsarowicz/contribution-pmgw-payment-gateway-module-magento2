@@ -12,23 +12,24 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Controller\Payment;
 
+use PHPUnit\Framework\MockObject\MockObject;
 use Bigfishpaymentgateway\Pmgw\Test\Unit\Fixtures\SessionFixture as Session;
 use Bigfishpaymentgateway\Pmgw\Test\Unit\Fixtures\Model\Response\ResultInterface;
 use Bigfishpaymentgateway\Pmgw\Controller\Payment\Start as StartController;
 
-class StartTest extends AbstractTest
+class StartTest extends PaymentTestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Session&MockObject
      */
     private $sessionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ResultInterface&MockObject
      */
     private $resultMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -40,33 +41,27 @@ class StartTest extends AbstractTest
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function executeWithRedirectUrlTest()
+    public function testExecuteWithRedirectUrl()
     {
         $this->sessionMock->expects(static::once())
             ->method('getPmgwRedirectUrlValue')
-            ->will($this->returnValue('http://example.com/redirect_url'));
+            ->willReturn('http://example.com/redirect_url');
 
         $this->resultFactoryMock->expects(static::once())
             ->method('create')
             ->with('redirect')
-            ->will($this->returnValue($this->resultMock));
+            ->willReturn($this->resultMock);
 
         $controller = new StartController($this->contextMock, $this->sessionMock);
 
         $this->assertEquals($this->resultMock, $controller->execute());
     }
 
-    /**
-     * @test
-     */
-    public function executeWithoutRedirectUrlTest()
+    public function testExecuteWithoutRedirectUrl()
     {
         $this->sessionMock->expects(static::once())
             ->method('getPmgwRedirectUrlValue')
-            ->will($this->returnValue(null));
+            ->willReturn(null);
 
         $this->resultFactoryMock->expects(static::never())
             ->method('create');
@@ -75,5 +70,4 @@ class StartTest extends AbstractTest
 
         $this->assertEquals(false, $controller->execute());
     }
-
 }

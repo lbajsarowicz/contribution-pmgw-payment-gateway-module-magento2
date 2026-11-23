@@ -12,38 +12,36 @@
  */
 namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Http;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use Bigfishpaymentgateway\Pmgw\Gateway\Http\TransferFactory;
 use Magento\Payment\Gateway\Http\TransferBuilder;
 use Magento\Payment\Gateway\Http\TransferInterface;
 
-class TransferFactoryTest extends \PHPUnit_Framework_TestCase
+class TransferFactoryTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransferBuilder&MockObject
      */
     private $trasferBuilderMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransferInterface&MockObject
      */
     private $transferMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
         $this->trasferBuilderMock = $this->getMockBuilder(TransferBuilder::class)
-            ->disableArgumentCloning()
             ->getMock();
 
         $this->transferMock = $this->getMockBuilder(TransferInterface::class)
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function createTest()
+    public function testCreate()
     {
         $request = ['foo' => 'bar'];
 
@@ -52,13 +50,12 @@ class TransferFactoryTest extends \PHPUnit_Framework_TestCase
         $this->trasferBuilderMock->expects(static::once())
             ->method('setBody')
             ->with($request)
-            ->will($this->returnSelf());
+            ->willReturnSelf();
 
         $this->trasferBuilderMock->expects(static::once())
             ->method('build')
-            ->will($this->returnValue($this->transferMock));
+            ->willReturn($this->transferMock);
 
         $this->assertEquals($this->transferMock, $factory->create($request));
     }
-
 }

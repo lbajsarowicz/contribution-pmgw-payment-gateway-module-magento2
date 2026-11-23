@@ -10,8 +10,10 @@
  * @license    http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
  * @copyright  Copyright (c) 2024, BIG FISH Payment Services Ltd.
  */
-namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Http\Clent;
+namespace Bigfishpaymentgateway\Pmgw\Test\Unit\Gateway\Http\Client;
 
+use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\TestCase;
 use BigFish\PaymentGateway;
 use BigFish\PaymentGateway\Config;
 use Bigfishpaymentgateway\Pmgw\Gateway\Helper\Helper;
@@ -21,34 +23,34 @@ use Magento\Payment\Gateway\ConfigInterface;
 use Magento\Customer\Model\Session;
 use Magento\Payment\Gateway\Http\TransferInterface;
 
-class InitializeClientTest extends \PHPUnit_Framework_TestCase
+class InitializeClientTest extends TestCase
 {
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var ConfigInterface&MockObject
      */
     private $configMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Helper&MockObject
      */
     private $helperMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Session&MockObject
      */
     private $customerSessionMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var TransferInterface&MockObject
      */
     private $transferObjectMock;
 
     /**
-     * @var \PHPUnit_Framework_MockObject_MockObject
+     * @var Transaction&MockObject
      */
     private $transactionMock;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -71,50 +73,41 @@ class InitializeClientTest extends \PHPUnit_Framework_TestCase
             ->getMock();
     }
 
-    /**
-     * @test
-     */
-    public function successfulInitializationTest()
+    public function testSuccessfulInitialization()
     {
         $this->transferObjectMock->expects(static::once())
             ->method('getBody')
-            ->will($this->returnValue([
+            ->willReturn([
                 Helper::RESPONSE_FIELD_RESULT_CODE => PaymentGateway::RESULT_CODE_SUCCESS,
                 Helper::RESPONSE_FIELD_TRANSACTION_ID => 'test_transaction_id',
-            ]));
+            ]);
 
-        $this->configMock->expects(static::at(0))
+        $this->configMock->expects(static::exactly(3))
             ->method('getValue')
-            ->with('storename')
-            ->will($this->returnValue('test_store'));
+            ->willReturnMap([
+                ['storename', null, 'test_store'],
+                ['apikey', null, 'test_api_key'],
+                ['testmode', null, '1'],
+            ]);
 
-        $this->configMock->expects(static::at(1))
-            ->method('getValue')
-            ->with('apikey')
-            ->will($this->returnValue('test_api_key'));
-
-        $this->configMock->expects(static::at(2))
-            ->method('getValue')
-            ->with('testmode')
-            ->will($this->returnValue('1'));
+        $config = new Config();
+        $config->storeName = 'test_store';
+        $config->apiKey = 'test_api_key';
+        $config->testMode = true;
 
         $this->helperMock->expects(static::once())
             ->method('setPaymentGatewayConfig')
-            ->with(new Config([
-                'storeName' => 'test_store',
-                'apiKey' => 'test_api_key',
-                'testMode' => true,
-            ]));
+            ->with($config);
 
         $this->helperMock->expects(static::once())
             ->method('getPaymentGatewayStartUrl')
             ->with('test_transaction_id')
-            ->will($this->returnValue('http://exaple.com/test_transaction_id'));
+            ->willReturn('http://exaple.com/test_transaction_id');
 
         $this->helperMock->expects(static::once())
             ->method('getTransactionByTransactionId')
             ->with('test_transaction_id')
-            ->will($this->returnValue($this->transactionMock));
+            ->willReturn($this->transactionMock);
 
         $this->helperMock->expects(static::once())
             ->method('updateTransactionStatus')
@@ -136,16 +129,13 @@ class InitializeClientTest extends \PHPUnit_Framework_TestCase
         ], $client->placeRequest($this->transferObjectMock));
     }
 
-    /**
-     * @test
-     */
-    public function unsuccessfulInitializationTest()
+    public function testUnsuccessfulInitialization()
     {
         $this->transferObjectMock->expects(static::once())
             ->method('getBody')
-            ->will($this->returnValue([
+            ->willReturn([
                 Helper::RESPONSE_FIELD_RESULT_CODE => PaymentGateway::RESULT_CODE_ERROR,
-            ]));
+            ]);
 
         $this->configMock->expects(static::never())
             ->method('getValue');
@@ -175,5 +165,4 @@ class InitializeClientTest extends \PHPUnit_Framework_TestCase
             'ResultCode' => 'ERROR',
         ], $client->placeRequest($this->transferObjectMock));
     }
-
 }
